@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import time
 from http import HTTPStatus
 
@@ -9,7 +10,7 @@ from dotenv import load_dotenv
 from telegram import TelegramError
 
 from exceptions import NoValidStatusCode, NoValidStatusHomework, \
-    NoNameHomework, NoRequiredKey, TokensError
+    NoNameHomework, NoRequiredKey, ApiConnectionError
 
 load_dotenv()
 
@@ -29,11 +30,6 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-)
-
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
@@ -46,7 +42,7 @@ def check_tokens():
             logging.critical(
                 f'Не удалось получить переменную окружения {name}'
             )
-            raise TokensError(name)
+            return False
     else:
         return True
 
@@ -76,8 +72,8 @@ def get_api_answer(timestamp):
         if response.status_code != HTTPStatus.OK:
             raise NoValidStatusCode
         return response.json()
-    except requests.RequestException as error:
-        logging.error(f'Не удалось выполнить запрос. ошибка: {error}')
+    except requests.RequestException:
+        raise ApiConnectionError
 
 
 def check_response(response):
@@ -94,10 +90,9 @@ def check_response(response):
 
 def parse_status(homework):
     """Возвращает строку со статусом домашки."""
-    try:
-        homework_name = homework['homework_name']
-    except KeyError:
+    if 'homework_name' not in homework:
         raise NoNameHomework
+    homework_name = homework['homework_name']
     status = homework['status']
     if not (verdict := HOMEWORK_VERDICTS.get(status)):
         raise NoValidStatusHomework
@@ -107,16 +102,19 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise
+        sys.exit(1)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = 0
+    sent_message = None
     while True:
         try:
             response = get_api_answer(timestamp)
             if check_response(response):
                 for homework in response.get('homeworks'):
                     message = parse_status(homework)
-                    send_message(bot, message)
+                    if sent_message != message:
+                        send_message(bot, message)
+                        sent_message = message
                 timestamp = int(time.time())
 
         except Exception as error:
@@ -126,4 +124,9 @@ def main():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(pathname)s:%(lineno)d '
+               '- %(levelname)s - %(message)s',
+    )
     main()
