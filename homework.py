@@ -110,7 +110,6 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            print(response)
             if check_response(response):
                 for homework in response.get('homeworks'):
                     message = parse_status(homework)
