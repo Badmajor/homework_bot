@@ -1,14 +1,17 @@
 class BaseCustomError(Exception):
     MESSAGE = None
     def __init__(self):
-        super().__init__()
-        self.message = self.MESSAGE
+        message = self.MESSAGE
+        super().__init__(message)
+
 
 class NoValidStatusCode(BaseCustomError):
     MESSAGE = 'Status code not equal 200'
 
+
 class NoValidStatusHomework(BaseCustomError):
     MESSAGE = 'Status homework no valid'
+
 
 class NoNameHomework(BaseCustomError):
     MESSAGE = 'Missing homework_name'
